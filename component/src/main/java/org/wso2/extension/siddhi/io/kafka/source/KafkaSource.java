@@ -160,12 +160,14 @@ import java.util.concurrent.ScheduledExecutorService;
 public class KafkaSource extends Source {
 
     public static final String SINGLE_THREADED = "single.thread";
+    public static final String MULTI_THREADED = "multi.thread";
     public static final String TOPIC_WISE = "topic.wise";
     public static final String PARTITION_WISE = "partition.wise";
     public static final String ADAPTOR_SUBSCRIBER_TOPIC = "topic.list";
     public static final String ADAPTOR_SUBSCRIBER_GROUP_ID = "group.id";
     public static final String ADAPTOR_SUBSCRIBER_ZOOKEEPER_CONNECT_SERVERS = "bootstrap.servers";
     public static final String ADAPTOR_SUBSCRIBER_PARTITION_NO_LIST = "partition.no.list";
+    public static final String NUMBER_OF_THREADS_FOR_MULTI_THREADED = "parallel.threads.no";
     public static final String ADAPTOR_OPTIONAL_CONFIGURATION_PROPERTIES = "optional.configuration";
     public static final String TOPIC_OFFSET_MAP = "topic.offset.map";
     public static final String THREADING_OPTION = "threading.option";
@@ -184,6 +186,7 @@ public class KafkaSource extends Source {
     private String groupID;
     private String threadingOption;
     private String partitions[];
+    private Integer numberOfParallelThreads;
     private String topics[];
     private String optionalConfigs;
     private boolean seqEnabled = false;
@@ -206,6 +209,8 @@ public class KafkaSource extends Source {
         threadingOption = optionHolder.validateAndGetStaticValue(THREADING_OPTION);
         String partitionList = optionHolder.validateAndGetStaticValue(ADAPTOR_SUBSCRIBER_PARTITION_NO_LIST, null);
         partitions = (partitionList != null) ? partitionList.split(HEADER_SEPARATOR) : null;
+        String numberOfParallelThreadsAsString = optionHolder.validateAndGetStaticValue(MULTI_THREADED, null);
+        numberOfParallelThreads = (numberOfParallelThreadsAsString != null) ? Integer.getInteger(numberOfParallelThreadsAsString) : null;
         String topicList = optionHolder.validateAndGetStaticValue(ADAPTOR_SUBSCRIBER_TOPIC);
         topics = topicList.split(HEADER_SEPARATOR);
         seqEnabled = optionHolder.validateAndGetStaticValue(SEQ_ENABLED, "false").equalsIgnoreCase("true");
@@ -217,13 +222,17 @@ public class KafkaSource extends Source {
             throw new SiddhiAppValidationException("Threading option is selected as 'partition.wise' but there are no"
                                                            + " partitions given");
         }
+        if (MULTI_THREADED.equals(threadingOption) && null == numberOfParallelThreads) {
+            throw new SiddhiAppValidationException("Threading option is selected as 'multi.thread' but number of threads"
+                                                           + " are not given");
+        }
         checkTopicsAvailableInCluster();
         checkPartitionsAvailableForTheTopicsInCluster();
         if (seqEnabled && consumerLastReceivedSeqNoMap == null) {
             consumerLastReceivedSeqNoMap = new HashMap<>();
         }
 
-        consumerKafkaGroup = new ConsumerKafkaGroup(topics, partitions,
+        consumerKafkaGroup = new ConsumerKafkaGroup(topics, partitions, numberOfParallelThreads,
                                                     KafkaSource.createConsumerConfig(bootstrapServers, groupID,
                                                                                      optionalConfigs, isBinaryMessage),
                                                     topicOffsetMap, consumerLastReceivedSeqNoMap, threadingOption,

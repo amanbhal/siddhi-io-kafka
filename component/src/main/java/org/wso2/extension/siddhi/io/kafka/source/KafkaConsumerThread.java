@@ -57,6 +57,8 @@ public class KafkaConsumerThread implements Runnable {
     private List<TopicPartition> partitionsList = new ArrayList<>();
     private Map<SequenceKey, Integer> lastReceivedSeqNoMap = null;
     private String consumerThreadId;
+    private boolean isMultiThreading = false;
+    private String consumerThreadIdSuffix = null;
     private boolean isPartitionWiseThreading = false;
     private boolean isBinaryMessage = false;
     private ReentrantLock lock;
@@ -64,13 +66,15 @@ public class KafkaConsumerThread implements Runnable {
 
     KafkaConsumerThread(SourceEventListener sourceEventListener, String topics[], String partitions[],
                         Properties props, Map<String, Map<Integer, Long>> topicOffsetMap,
-                        boolean isPartitionWiseThreading, boolean isBinaryMessage) {
+                        boolean isPartitionWiseThreading, boolean isMultiThreading, String consumerThreadIdSuffix, boolean isBinaryMessage) {
         this.consumer = new KafkaConsumer<>(props);
         this.sourceEventListener = sourceEventListener;
         this.topicOffsetMap = topicOffsetMap;
         this.topics = topics;
         this.partitions = partitions;
         this.isPartitionWiseThreading = isPartitionWiseThreading;
+        this.isMultiThreading = isMultiThreading;
+        this.consumerThreadIdSuffix = consumerThreadIdSuffix;
         this.isBinaryMessage = isBinaryMessage;
         this.consumerThreadId = buildId();
         lock = new ReentrantLock();
@@ -282,6 +286,12 @@ public class KafkaConsumerThread implements Runnable {
                     key.append(":");
                 }
             }
+        }
+
+
+        if ( consumerThreadIdSuffix != null && isMultiThreading) {
+            key.append("-");
+            key.append(consumerThreadIdSuffix);
         }
         return key.toString();
     }
